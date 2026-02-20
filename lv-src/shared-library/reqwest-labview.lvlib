@@ -7,14 +7,14 @@
 	<Item Name="subvi" Type="Folder">
 		<Item Name="Error Converter (ErrCode or Status).vi" Type="VI" URL="../subvi/Error Converter (ErrCode or Status).vi"/>
 	</Item>
-	<Item Name="DELETE.vi" Type="VI" URL="../VIs/DELETE.vi"/>
-	<Item Name="error.get_last.vi" Type="VI" URL="../VIs/error.get_last.vi"/>
-	<Item Name="GET.vi" Type="VI" URL="../VIs/GET.vi"/>
-	<Item Name="http_rs_labview.dll" Type="Document" URL="../http_rs_labview.dll"/>
-	<Item Name="PATCH.vi" Type="VI" URL="../VIs/PATCH.vi"/>
-	<Item Name="POST.vi" Type="VI" URL="../VIs/POST.vi"/>
-	<Item Name="PUT.vi" Type="VI" URL="../VIs/PUT.vi"/>
-	<Item Name="response.free.vi" Type="VI" URL="../VIs/response.free.vi"/>
-	<Item Name="response.get.vi" Type="VI" URL="../VIs/response.get.vi"/>
-	<Item Name="shutdown.vi" Type="VI" URL="../VIs/shutdown.vi"/>
+	<Item Name="http delete.vi" Type="VI" URL="../VIs/http delete.vi"/>
+	<Item Name="http free response.vi" Type="VI" URL="../VIs/http free response.vi"/>
+	<Item Name="http get last error.vi" Type="VI" URL="../VIs/http get last error.vi"/>
+	<Item Name="http get.vi" Type="VI" URL="../VIs/http get.vi"/>
+	<Item Name="http patch.vi" Type="VI" URL="../VIs/http patch.vi"/>
+	<Item Name="http post.vi" Type="VI" URL="../VIs/http post.vi"/>
+	<Item Name="http put.vi" Type="VI" URL="../VIs/http put.vi"/>
+	<Item Name="http read response.vi" Type="VI" URL="../VIs/http read response.vi"/>
+	<Item Name="http shutdown.vi" Type="VI" URL="../VIs/http shutdown.vi"/>
+	<Item Name="http_rs_labview_64.dll" Type="Document" URL="../http_rs_labview_64.dll"/>
 </Library>
