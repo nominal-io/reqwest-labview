@@ -4,7 +4,7 @@ mod http;
 mod runtime;
 mod store;
 
-use std::ffi::CStr;
+use std::ffi::{CStr, c_void};
 use std::os::raw::c_char;
 use std::slice;
 
@@ -20,8 +20,17 @@ use store::{clear_all_responses, free_response, insert_response, read_and_free_r
 // `extern "system"` resolves to stdcall on Windows and cdecl everywhere else.
 // ---------------------------------------------------------------------------
 
+// The handle is a u64 key stored as a pointer-sized value (void*).
+// This matches LabVIEW's Instance Data Pointer type.
+fn handle_to_ptr(handle: u64) -> *mut c_void {
+    handle as usize as *mut c_void
+}
+
+fn ptr_to_handle(ptr: *mut c_void) -> u64 {
+    ptr as usize as u64
+}
+
 /// Helper: convert a *const c_char URL to a &str.
-/// Returns Err with an error code already set on failure.
 unsafe fn url_to_str<'a>(url: *const c_char) -> Result<&'a str, i32> {
     if url.is_null() {
         set_last_error("URL pointer is null");
@@ -34,7 +43,6 @@ unsafe fn url_to_str<'a>(url: *const c_char) -> Result<&'a str, i32> {
 }
 
 /// Helper: convert a raw body pointer + length into a Vec<u8>.
-/// A null pointer with length 0 is treated as an empty body.
 unsafe fn body_to_vec(body_ptr: *const u8, body_len: i32) -> Vec<u8> {
     if body_ptr.is_null() || body_len <= 0 {
         Vec::new()
@@ -46,7 +54,7 @@ unsafe fn body_to_vec(body_ptr: *const u8, body_len: i32) -> Vec<u8> {
 /// Helper: write outputs after a successful request.
 unsafe fn write_response_outputs(
     response: crate::http::HttpResponse,
-    handle_out: *mut u64,
+    handle_out: *mut *mut c_void,
     response_len_out: *mut i32,
     status_out: *mut u32,
 ) -> i32 {
@@ -55,7 +63,7 @@ unsafe fn write_response_outputs(
     let handle = insert_response(response.body, status);
 
     if !handle_out.is_null() {
-        *handle_out = handle;
+        *handle_out = handle_to_ptr(handle);
     }
     if !response_len_out.is_null() {
         *response_len_out = len;
@@ -71,25 +79,12 @@ unsafe fn write_response_outputs(
 // Public FFI functions
 // ---------------------------------------------------------------------------
 
-/// Perform an HTTP GET request.
-///
-/// @param url            Null-terminated UTF-8 URL string.
-/// @param headers_json   Null-terminated JSON object of request headers, e.g.
-///                       "{\"Authorization\": \"Bearer token\"}".
-///                       Pass NULL for no headers.
-/// @param timeout_ms     Request timeout in milliseconds. Pass 0 for no timeout.
-/// @param handle_out     Receives an opaque handle identifying the stored response.
-///                       Pass to http_read_response or http_free_response.
-/// @param response_len_out  Receives the byte length of the response body.
-///                          Use this to allocate the buffer before calling http_read_response.
-/// @param status_out     Receives the HTTP status code (e.g. 200, 404).
-/// @return               0 on success, negative error code on failure.
 #[no_mangle]
 pub extern "system" fn http_get(
     url: *const c_char,
     headers_json: *const c_char,
     timeout_ms: i32,
-    handle_out: *mut u64,
+    handle_out: *mut *mut c_void,
     response_len_out: *mut i32,
     status_out: *mut u32,
 ) -> i32 {
@@ -110,19 +105,6 @@ pub extern "system" fn http_get(
     }
 }
 
-/// Perform an HTTP POST request.
-///
-/// @param url            Null-terminated UTF-8 URL string.
-/// @param headers_json   Null-terminated JSON object of request headers.
-///                       Pass NULL for no headers.
-/// @param body_ptr       Pointer to the raw request body bytes.
-///                       Pass NULL for an empty body.
-/// @param body_len       Length of the request body in bytes.
-/// @param timeout_ms     Request timeout in milliseconds. Pass 0 for no timeout.
-/// @param handle_out     Receives an opaque handle identifying the stored response.
-/// @param response_len_out  Receives the byte length of the response body.
-/// @param status_out     Receives the HTTP status code.
-/// @return               0 on success, negative error code on failure.
 #[no_mangle]
 pub extern "system" fn http_post(
     url: *const c_char,
@@ -130,7 +112,7 @@ pub extern "system" fn http_post(
     body_ptr: *const u8,
     body_len: i32,
     timeout_ms: i32,
-    handle_out: *mut u64,
+    handle_out: *mut *mut c_void,
     response_len_out: *mut i32,
     status_out: *mut u32,
 ) -> i32 {
@@ -152,19 +134,6 @@ pub extern "system" fn http_post(
     }
 }
 
-/// Perform an HTTP PUT request.
-///
-/// @param url            Null-terminated UTF-8 URL string.
-/// @param headers_json   Null-terminated JSON object of request headers.
-///                       Pass NULL for no headers.
-/// @param body_ptr       Pointer to the raw request body bytes.
-///                       Pass NULL for an empty body.
-/// @param body_len       Length of the request body in bytes.
-/// @param timeout_ms     Request timeout in milliseconds. Pass 0 for no timeout.
-/// @param handle_out     Receives an opaque handle identifying the stored response.
-/// @param response_len_out  Receives the byte length of the response body.
-/// @param status_out     Receives the HTTP status code.
-/// @return               0 on success, negative error code on failure.
 #[no_mangle]
 pub extern "system" fn http_put(
     url: *const c_char,
@@ -172,7 +141,7 @@ pub extern "system" fn http_put(
     body_ptr: *const u8,
     body_len: i32,
     timeout_ms: i32,
-    handle_out: *mut u64,
+    handle_out: *mut *mut c_void,
     response_len_out: *mut i32,
     status_out: *mut u32,
 ) -> i32 {
@@ -194,19 +163,6 @@ pub extern "system" fn http_put(
     }
 }
 
-/// Perform an HTTP PATCH request.
-///
-/// @param url            Null-terminated UTF-8 URL string.
-/// @param headers_json   Null-terminated JSON object of request headers.
-///                       Pass NULL for no headers.
-/// @param body_ptr       Pointer to the raw request body bytes.
-///                       Pass NULL for an empty body.
-/// @param body_len       Length of the request body in bytes.
-/// @param timeout_ms     Request timeout in milliseconds. Pass 0 for no timeout.
-/// @param handle_out     Receives an opaque handle identifying the stored response.
-/// @param response_len_out  Receives the byte length of the response body.
-/// @param status_out     Receives the HTTP status code.
-/// @return               0 on success, negative error code on failure.
 #[no_mangle]
 pub extern "system" fn http_patch(
     url: *const c_char,
@@ -214,7 +170,7 @@ pub extern "system" fn http_patch(
     body_ptr: *const u8,
     body_len: i32,
     timeout_ms: i32,
-    handle_out: *mut u64,
+    handle_out: *mut *mut c_void,
     response_len_out: *mut i32,
     status_out: *mut u32,
 ) -> i32 {
@@ -236,22 +192,12 @@ pub extern "system" fn http_patch(
     }
 }
 
-/// Perform an HTTP DELETE request.
-///
-/// @param url            Null-terminated UTF-8 URL string.
-/// @param headers_json   Null-terminated JSON object of request headers.
-///                       Pass NULL for no headers.
-/// @param timeout_ms     Request timeout in milliseconds. Pass 0 for no timeout.
-/// @param handle_out     Receives an opaque handle identifying the stored response.
-/// @param response_len_out  Receives the byte length of the response body.
-/// @param status_out     Receives the HTTP status code.
-/// @return               0 on success, negative error code on failure.
 #[no_mangle]
 pub extern "system" fn http_delete(
     url: *const c_char,
     headers_json: *const c_char,
     timeout_ms: i32,
-    handle_out: *mut u64,
+    handle_out: *mut *mut c_void,
     response_len_out: *mut i32,
     status_out: *mut u32,
 ) -> i32 {
@@ -272,60 +218,27 @@ pub extern "system" fn http_delete(
     }
 }
 
-/// Read and consume a stored response into a caller-supplied buffer.
-///
-/// The handle is consumed on success and cannot be used again.
-/// If the buffer is too small (ERR_BUFFER_TOO_SMALL), the handle remains
-/// valid and the call can be retried with a larger buffer.
-///
-/// @param handle     Handle returned by a previous http_* call.
-/// @param buf_ptr    Pointer to a caller-allocated buffer to receive the response body.
-/// @param buf_len    Size of the buffer in bytes. Must be >= the response_len
-///                   returned by the originating http_* call.
-/// @return           Number of bytes written on success, negative error code on failure.
 #[no_mangle]
 pub extern "system" fn http_read_response(
-    handle: u64,
+    handle: *mut c_void,
     buf_ptr: *mut u8,
     buf_len: i32,
 ) -> i32 {
     clear_last_error();
-    read_and_free_response(handle, buf_ptr, buf_len)
+    read_and_free_response(ptr_to_handle(handle), buf_ptr, buf_len)
 }
 
-/// Free a stored response without reading it.
-///
-/// Call this in error-handling paths where you have a handle but do not
-/// intend to read the response body. Failing to call this or http_read_response
-/// will leak the stored response for the lifetime of the process.
-///
-/// @param handle     Handle returned by a previous http_* call.
-/// @return           0 on success, negative error code on failure.
 #[no_mangle]
-pub extern "system" fn http_free_response(handle: u64) -> i32 {
+pub extern "system" fn http_free_response(handle: *mut c_void) -> i32 {
     clear_last_error();
-    free_response(handle)
+    free_response(ptr_to_handle(handle))
 }
 
-/// Retrieve the last error message as a null-terminated UTF-8 string.
-///
-/// Error messages are stored per-thread, so this must be called from the
-/// same thread that made the failing http_* call.
-///
-/// @param buf_ptr    Pointer to a caller-allocated buffer.
-/// @param buf_len    Size of the buffer in bytes.
-/// @return           Number of bytes written (excluding null terminator),
-///                   or a negative error code if buf_ptr is null.
 #[no_mangle]
 pub extern "system" fn http_get_last_error(buf_ptr: *mut u8, buf_len: i32) -> i32 {
     read_last_error(buf_ptr, buf_len)
 }
 
-/// Shut down the library.
-///
-/// Frees all stored responses. Should be called when your LabVIEW application
-/// is closing or when you want to ensure all handles are released.
-/// The HTTP client itself is tied to the process lifetime and is not freed.
 #[no_mangle]
 pub extern "system" fn http_shutdown() {
     clear_all_responses();
