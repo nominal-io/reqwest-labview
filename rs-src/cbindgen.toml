@@ -1,0 +1,15 @@
+language = "C"
+include_guard = "HTTP_RS_LABVIEW_H"
+documentation = true
+documentation_style = "c99"
+tab_width = 4
+no_includes = false
+sys_includes = ["stdint.h"]
+
+[export]
+include = []        # Export everything marked #[no_mangle]
+
+[layout]
+# Ensure struct layout matches what LabVIEW expects
+packed = false
+align_n = 0

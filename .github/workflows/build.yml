@@ -1,0 +1,120 @@
+name: Build Shared Libraries
+
+on:
+  workflow_dispatch:  # Manual trigger only
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          # Windows 32-bit
+          - os: windows-latest
+            target: i686-pc-windows-msvc
+            extension: dll
+            bitness: 32
+
+          # Windows 64-bit
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            extension: dll
+            bitness: 64
+
+          # Linux 64-bit (works on NI Linux RT as-is)
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            extension: so
+            bitness: 64
+
+          # macOS Apple Silicon
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            extension: dylib
+            bitness: 64
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo index
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-git-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache target directory
+        uses: actions/cache@v4
+        with:
+          path: rs_src/target
+          key: ${{ runner.os }}-${{ matrix.target }}-target-${{ hashFiles('rs_src/Cargo.lock') }}
+
+      - name: Build release
+        working-directory: rs_src
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Find library file (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          LIB_FILE=$(find rs_src/target/${{ matrix.target }}/release -name "lib*.${{ matrix.extension }}" -type f | head -n 1)
+          BASE_NAME=$(basename $LIB_FILE | sed 's/^lib//' | sed 's/\.${{ matrix.extension }}$//')
+          NEW_NAME="${BASE_NAME}_${{ matrix.bitness }}.${{ matrix.extension }}"
+          if [ "$(basename $LIB_FILE)" != "$NEW_NAME" ]; then
+            cp "$LIB_FILE" "rs_src/target/${{ matrix.target }}/release/$NEW_NAME"
+          fi
+          echo "LIB_PATH=rs_src/target/${{ matrix.target }}/release/$NEW_NAME" >> $GITHUB_ENV
+          echo "LIB_NAME=$NEW_NAME" >> $GITHUB_ENV
+
+      - name: Find library file (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $libFile = Get-ChildItem -Path "rs_src/target/${{ matrix.target }}/release" -Filter "*.${{ matrix.extension }}" -File | Where-Object { $_.Name -notmatch '_\d+\.' } | Select-Object -First 1
+          $baseName = $libFile.BaseName
+          $newName = "${baseName}_${{ matrix.bitness }}.${{ matrix.extension }}"
+          if ($libFile.Name -ne $newName) {
+            Copy-Item -Path $libFile.FullName -Destination "rs_src/target/${{ matrix.target }}/release/$newName"
+          }
+          echo "LIB_PATH=rs_src/target/${{ matrix.target }}/release/$newName" | Out-File -FilePath $env:GITHUB_ENV -Append
+          echo "LIB_NAME=$newName" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: library-${{ matrix.target }}
+          path: ${{ env.LIB_PATH }}
+          if-no-files-found: error
+
+  # Collect all artifacts into a single download
+  collect:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: libraries
+
+      - name: Flatten directory structure
+        run: |
+          mkdir -p all-libs
+          find libraries -type f \( -name "*.dll" -o -name "*.so" -o -name "*.dylib" \) -exec cp {} all-libs/ \;
+          ls -lh all-libs/
+
+      - name: Upload combined artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: all-libraries
+          path: all-libs/
