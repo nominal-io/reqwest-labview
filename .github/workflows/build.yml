@@ -38,6 +38,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Show repo structure (debug)
+        shell: bash
+        run: find . -maxdepth 3 -not -path './.git/*' | sort
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -58,36 +62,36 @@ jobs:
       - name: Cache target directory
         uses: actions/cache@v4
         with:
-          path: rs_src/target
-          key: ${{ runner.os }}-${{ matrix.target }}-target-${{ hashFiles('rs_src/Cargo.lock') }}
+          path: rs-src/target
+          key: ${{ runner.os }}-${{ matrix.target }}-target-${{ hashFiles('rs-src/Cargo.lock') }}
 
       - name: Build release
-        working-directory: rs_src
+        working-directory: rs-src
         run: cargo build --release --target ${{ matrix.target }}
 
       - name: Find library file (Unix)
         if: runner.os != 'Windows'
         run: |
-          LIB_FILE=$(find rs_src/target/${{ matrix.target }}/release -name "lib*.${{ matrix.extension }}" -type f | head -n 1)
+          LIB_FILE=$(find rs-src/target/${{ matrix.target }}/release -name "lib*.${{ matrix.extension }}" -type f | head -n 1)
           BASE_NAME=$(basename $LIB_FILE | sed 's/^lib//' | sed 's/\.${{ matrix.extension }}$//')
           NEW_NAME="${BASE_NAME}_${{ matrix.bitness }}.${{ matrix.extension }}"
           if [ "$(basename $LIB_FILE)" != "$NEW_NAME" ]; then
-            cp "$LIB_FILE" "rs_src/target/${{ matrix.target }}/release/$NEW_NAME"
+            cp "$LIB_FILE" "rs-src/target/${{ matrix.target }}/release/$NEW_NAME"
           fi
-          echo "LIB_PATH=rs_src/target/${{ matrix.target }}/release/$NEW_NAME" >> $GITHUB_ENV
+          echo "LIB_PATH=rs-src/target/${{ matrix.target }}/release/$NEW_NAME" >> $GITHUB_ENV
           echo "LIB_NAME=$NEW_NAME" >> $GITHUB_ENV
 
       - name: Find library file (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $libFile = Get-ChildItem -Path "rs_src/target/${{ matrix.target }}/release" -Filter "*.${{ matrix.extension }}" -File | Where-Object { $_.Name -notmatch '_\d+\.' } | Select-Object -First 1
+          $libFile = Get-ChildItem -Path "rs-src/target/${{ matrix.target }}/release" -Filter "*.${{ matrix.extension }}" -File | Where-Object { $_.Name -notmatch '_\d+\.' } | Select-Object -First 1
           $baseName = $libFile.BaseName
           $newName = "${baseName}_${{ matrix.bitness }}.${{ matrix.extension }}"
           if ($libFile.Name -ne $newName) {
-            Copy-Item -Path $libFile.FullName -Destination "rs_src/target/${{ matrix.target }}/release/$newName"
+            Copy-Item -Path $libFile.FullName -Destination "rs-src/target/${{ matrix.target }}/release/$newName"
           }
-          echo "LIB_PATH=rs_src/target/${{ matrix.target }}/release/$newName" | Out-File -FilePath $env:GITHUB_ENV -Append
+          echo "LIB_PATH=rs-src/target/${{ matrix.target }}/release/$newName" | Out-File -FilePath $env:GITHUB_ENV -Append
           echo "LIB_NAME=$newName" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Upload artifacts
