@@ -69,28 +69,22 @@ jobs:
         working-directory: rs-src
         run: cargo build --release --target ${{ matrix.target }}
 
-      - name: Find library file (Unix)
+      - name: Rename library file (Unix)
         if: runner.os != 'Windows'
         run: |
-          LIB_FILE=$(find rs-src/target/${{ matrix.target }}/release -name "lib*.${{ matrix.extension }}" -type f | head -n 1)
-          BASE_NAME=$(basename $LIB_FILE | sed 's/^lib//' | sed 's/\.${{ matrix.extension }}$//')
-          NEW_NAME="${BASE_NAME}_${{ matrix.bitness }}.${{ matrix.extension }}"
-          if [ "$(basename $LIB_FILE)" != "$NEW_NAME" ]; then
-            cp "$LIB_FILE" "rs-src/target/${{ matrix.target }}/release/$NEW_NAME"
-          fi
+          NEW_NAME="http_rs_labview_${{ matrix.bitness }}.${{ matrix.extension }}"
+          LIB_FILE=$(find rs-src/target/${{ matrix.target }}/release -maxdepth 1 -name "libhttp_rs_labview.${{ matrix.extension }}" -type f)
+          cp "$LIB_FILE" "rs-src/target/${{ matrix.target }}/release/$NEW_NAME"
           echo "LIB_PATH=rs-src/target/${{ matrix.target }}/release/$NEW_NAME" >> $GITHUB_ENV
           echo "LIB_NAME=$NEW_NAME" >> $GITHUB_ENV
 
-      - name: Find library file (Windows)
+      - name: Rename library file (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $libFile = Get-ChildItem -Path "rs-src/target/${{ matrix.target }}/release" -Filter "*.${{ matrix.extension }}" -File | Where-Object { $_.Name -notmatch '_\d+\.' } | Select-Object -First 1
-          $baseName = $libFile.BaseName
-          $newName = "${baseName}_${{ matrix.bitness }}.${{ matrix.extension }}"
-          if ($libFile.Name -ne $newName) {
-            Copy-Item -Path $libFile.FullName -Destination "rs-src/target/${{ matrix.target }}/release/$newName"
-          }
+          $newName = "http_rs_labview_${{ matrix.bitness }}.${{ matrix.extension }}"
+          $libFile = Get-ChildItem -Path "rs-src/target/${{ matrix.target }}/release" -Filter "http_rs_labview.${{ matrix.extension }}" -File | Select-Object -First 1
+          Copy-Item -Path $libFile.FullName -Destination "rs-src/target/${{ matrix.target }}/release/$newName"
           echo "LIB_PATH=rs-src/target/${{ matrix.target }}/release/$newName" | Out-File -FilePath $env:GITHUB_ENV -Append
           echo "LIB_NAME=$newName" | Out-File -FilePath $env:GITHUB_ENV -Append
 

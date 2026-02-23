@@ -4,7 +4,7 @@ mod http;
 mod runtime;
 mod store;
 
-use std::ffi::{CStr, c_void};
+use std::ffi::CStr;
 use std::os::raw::c_char;
 use std::slice;
 
@@ -19,16 +19,6 @@ use store::{clear_all_responses, free_response, insert_response, read_and_free_r
 // On Windows, LabVIEW's Call Library Node defaults to __stdcall.
 // `extern "system"` resolves to stdcall on Windows and cdecl everywhere else.
 // ---------------------------------------------------------------------------
-
-// The handle is a u64 key stored as a pointer-sized value (void*).
-// This matches LabVIEW's Instance Data Pointer type.
-fn handle_to_ptr(handle: u64) -> *mut c_void {
-    handle as usize as *mut c_void
-}
-
-fn ptr_to_handle(ptr: *mut c_void) -> u64 {
-    ptr as usize as u64
-}
 
 /// Helper: convert a *const c_char URL to a &str.
 unsafe fn url_to_str<'a>(url: *const c_char) -> Result<&'a str, i32> {
@@ -52,9 +42,11 @@ unsafe fn body_to_vec(body_ptr: *const u8, body_len: i32) -> Vec<u8> {
 }
 
 /// Helper: write outputs after a successful request.
+/// handle_out receives a u64 handle - safe to use as U64 in LabVIEW on both
+/// 32-bit and 64-bit, avoiding any pointer-size ambiguity across platforms.
 unsafe fn write_response_outputs(
     response: crate::http::HttpResponse,
-    handle_out: *mut *mut c_void,
+    handle_out: *mut u64,
     response_len_out: *mut i32,
     status_out: *mut u32,
 ) -> i32 {
@@ -63,7 +55,7 @@ unsafe fn write_response_outputs(
     let handle = insert_response(response.body, status);
 
     if !handle_out.is_null() {
-        *handle_out = handle_to_ptr(handle);
+        *handle_out = handle;
     }
     if !response_len_out.is_null() {
         *response_len_out = len;
@@ -84,7 +76,7 @@ pub extern "system" fn http_get(
     url: *const c_char,
     headers_json: *const c_char,
     timeout_ms: i32,
-    handle_out: *mut *mut c_void,
+    handle_out: *mut u64,
     response_len_out: *mut i32,
     status_out: *mut u32,
 ) -> i32 {
@@ -112,7 +104,7 @@ pub extern "system" fn http_post(
     body_ptr: *const u8,
     body_len: i32,
     timeout_ms: i32,
-    handle_out: *mut *mut c_void,
+    handle_out: *mut u64,
     response_len_out: *mut i32,
     status_out: *mut u32,
 ) -> i32 {
@@ -141,7 +133,7 @@ pub extern "system" fn http_put(
     body_ptr: *const u8,
     body_len: i32,
     timeout_ms: i32,
-    handle_out: *mut *mut c_void,
+    handle_out: *mut u64,
     response_len_out: *mut i32,
     status_out: *mut u32,
 ) -> i32 {
@@ -170,7 +162,7 @@ pub extern "system" fn http_patch(
     body_ptr: *const u8,
     body_len: i32,
     timeout_ms: i32,
-    handle_out: *mut *mut c_void,
+    handle_out: *mut u64,
     response_len_out: *mut i32,
     status_out: *mut u32,
 ) -> i32 {
@@ -197,7 +189,7 @@ pub extern "system" fn http_delete(
     url: *const c_char,
     headers_json: *const c_char,
     timeout_ms: i32,
-    handle_out: *mut *mut c_void,
+    handle_out: *mut u64,
     response_len_out: *mut i32,
     status_out: *mut u32,
 ) -> i32 {
@@ -220,18 +212,18 @@ pub extern "system" fn http_delete(
 
 #[no_mangle]
 pub extern "system" fn http_read_response(
-    handle: *mut c_void,
+    handle: u64,
     buf_ptr: *mut u8,
     buf_len: i32,
 ) -> i32 {
     clear_last_error();
-    read_and_free_response(ptr_to_handle(handle), buf_ptr, buf_len)
+    read_and_free_response(handle, buf_ptr, buf_len)
 }
 
 #[no_mangle]
-pub extern "system" fn http_free_response(handle: *mut c_void) -> i32 {
+pub extern "system" fn http_free_response(handle: u64) -> i32 {
     clear_last_error();
-    free_response(ptr_to_handle(handle))
+    free_response(handle)
 }
 
 #[no_mangle]
