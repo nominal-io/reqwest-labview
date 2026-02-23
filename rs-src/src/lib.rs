@@ -90,7 +90,7 @@ unsafe fn deref_handle(handle_ptr: *mut u64) -> Result<u64, i32> {
 // ---------------------------------------------------------------------------
 
 #[no_mangle]
-pub extern "system" fn http_get(
+pub extern "C" fn http_get(
     url: *const c_char,
     headers_json: *const c_char,
     timeout_ms: i32,
@@ -116,7 +116,7 @@ pub extern "system" fn http_get(
 }
 
 #[no_mangle]
-pub extern "system" fn http_post(
+pub extern "C" fn http_post(
     url: *const c_char,
     headers_json: *const c_char,
     body_ptr: *const u8,
@@ -145,7 +145,7 @@ pub extern "system" fn http_post(
 }
 
 #[no_mangle]
-pub extern "system" fn http_put(
+pub extern "C" fn http_put(
     url: *const c_char,
     headers_json: *const c_char,
     body_ptr: *const u8,
@@ -174,7 +174,7 @@ pub extern "system" fn http_put(
 }
 
 #[no_mangle]
-pub extern "system" fn http_patch(
+pub extern "C" fn http_patch(
     url: *const c_char,
     headers_json: *const c_char,
     body_ptr: *const u8,
@@ -203,7 +203,7 @@ pub extern "system" fn http_patch(
 }
 
 #[no_mangle]
-pub extern "system" fn http_delete(
+pub extern "C" fn http_delete(
     url: *const c_char,
     headers_json: *const c_char,
     timeout_ms: i32,
@@ -239,7 +239,7 @@ pub extern "system" fn http_delete(
 /// ERR_BUFFER_TOO_SMALL - allocate a buffer of at least response_len_out bytes
 /// upfront to avoid this situation.
 #[no_mangle]
-pub extern "system" fn http_read_response(
+pub extern "C" fn http_read_response(
     handle_ptr: *mut u64,
     buf_ptr: *mut u8,
     buf_len: i32,
@@ -261,7 +261,7 @@ pub extern "system" fn http_read_response(
 ///
 /// LabVIEW CLN wiring: handle -> "Pointer to Void" (adapt to type).
 #[no_mangle]
-pub extern "system" fn http_free_response(handle_ptr: *mut u64) -> i32 {
+pub extern "C" fn http_free_response(handle_ptr: *mut u64) -> i32 {
     clear_last_error();
     unsafe {
         let handle = match deref_handle(handle_ptr) {
@@ -275,11 +275,11 @@ pub extern "system" fn http_free_response(handle_ptr: *mut u64) -> i32 {
 }
 
 #[no_mangle]
-pub extern "system" fn http_get_last_error(buf_ptr: *mut u8, buf_len: i32) -> i32 {
+pub extern "C" fn http_get_last_error(buf_ptr: *mut u8, buf_len: i32) -> i32 {
     read_last_error(buf_ptr, buf_len)
 }
 
 #[no_mangle]
-pub extern "system" fn http_shutdown() {
+pub extern "C" fn http_shutdown() {
     clear_all_responses();
 }

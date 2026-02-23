@@ -16,5 +16,4 @@
 	<Item Name="http put.vi" Type="VI" URL="../VIs/http put.vi"/>
 	<Item Name="http read response.vi" Type="VI" URL="../VIs/http read response.vi"/>
 	<Item Name="http shutdown.vi" Type="VI" URL="../VIs/http shutdown.vi"/>
-	<Item Name="http_rs_labview_64.dll" Type="Document" URL="../http_rs_labview_64.dll"/>
 </Library>
