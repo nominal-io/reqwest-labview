@@ -42,11 +42,16 @@ unsafe fn body_to_vec(body_ptr: *const u8, body_len: i32) -> Vec<u8> {
 }
 
 /// Helper: write outputs after a successful request.
-/// handle_out receives a u64 handle - safe to use as U64 in LabVIEW on both
-/// 32-bit and 64-bit, avoiding any pointer-size ambiguity across platforms.
+///
+/// The handle is heap-boxed so LabVIEW always receives a native-width pointer
+/// (32-bit on 32-bit LabVIEW, 64-bit on 64-bit LabVIEW). This avoids the
+/// calling-convention pitfalls of passing u64 across the FFI boundary on
+/// 32-bit x86 __stdcall.
+///
+/// LabVIEW CLN wiring: handle_out -> "Pointer to Pointer to Void" (adapt to type).
 unsafe fn write_response_outputs(
     response: crate::http::HttpResponse,
-    handle_out: *mut u64,
+    handle_out: *mut *mut u64,
     response_len_out: *mut i32,
     status_out: *mut u32,
 ) -> i32 {
@@ -55,7 +60,10 @@ unsafe fn write_response_outputs(
     let handle = insert_response(response.body, status);
 
     if !handle_out.is_null() {
-        *handle_out = handle;
+        // Box the u64 store key and give LabVIEW a native-width pointer to it.
+        // The caller must eventually pass this pointer back to http_read_response
+        // or http_free_response, which will drop the box.
+        *handle_out = Box::into_raw(Box::new(handle));
     }
     if !response_len_out.is_null() {
         *response_len_out = len;
@@ -67,6 +75,16 @@ unsafe fn write_response_outputs(
     ERR_OK
 }
 
+/// Dereference a handle pointer and return the inner store key.
+/// Returns Err(ERR_NULL_PTR) if the pointer is null.
+unsafe fn deref_handle(handle_ptr: *mut u64) -> Result<u64, i32> {
+    if handle_ptr.is_null() {
+        set_last_error("Handle pointer is null");
+        return Err(ERR_NULL_PTR);
+    }
+    Ok(*handle_ptr)
+}
+
 // ---------------------------------------------------------------------------
 // Public FFI functions
 // ---------------------------------------------------------------------------
@@ -76,7 +94,7 @@ pub extern "system" fn http_get(
     url: *const c_char,
     headers_json: *const c_char,
     timeout_ms: i32,
-    handle_out: *mut u64,
+    handle_out: *mut *mut u64,
     response_len_out: *mut i32,
     status_out: *mut u32,
 ) -> i32 {
@@ -104,7 +122,7 @@ pub extern "system" fn http_post(
     body_ptr: *const u8,
     body_len: i32,
     timeout_ms: i32,
-    handle_out: *mut u64,
+    handle_out: *mut *mut u64,
     response_len_out: *mut i32,
     status_out: *mut u32,
 ) -> i32 {
@@ -133,7 +151,7 @@ pub extern "system" fn http_put(
     body_ptr: *const u8,
     body_len: i32,
     timeout_ms: i32,
-    handle_out: *mut u64,
+    handle_out: *mut *mut u64,
     response_len_out: *mut i32,
     status_out: *mut u32,
 ) -> i32 {
@@ -162,7 +180,7 @@ pub extern "system" fn http_patch(
     body_ptr: *const u8,
     body_len: i32,
     timeout_ms: i32,
-    handle_out: *mut u64,
+    handle_out: *mut *mut u64,
     response_len_out: *mut i32,
     status_out: *mut u32,
 ) -> i32 {
@@ -189,7 +207,7 @@ pub extern "system" fn http_delete(
     url: *const c_char,
     headers_json: *const c_char,
     timeout_ms: i32,
-    handle_out: *mut u64,
+    handle_out: *mut *mut u64,
     response_len_out: *mut i32,
     status_out: *mut u32,
 ) -> i32 {
@@ -210,20 +228,50 @@ pub extern "system" fn http_delete(
     }
 }
 
+/// Read the response body into the caller-supplied buffer, then free both the
+/// store entry and the heap-boxed handle pointer.
+///
+/// LabVIEW CLN wiring: handle -> "Pointer to Void" (adapt to type).
+///
+/// Note on ERR_BUFFER_TOO_SMALL: the store entry is put back so you can retry
+/// with a larger buffer, but the box is always freed here. Do not call
+/// http_read_response or http_free_response again after this returns
+/// ERR_BUFFER_TOO_SMALL - allocate a buffer of at least response_len_out bytes
+/// upfront to avoid this situation.
 #[no_mangle]
 pub extern "system" fn http_read_response(
-    handle: u64,
+    handle_ptr: *mut u64,
     buf_ptr: *mut u8,
     buf_len: i32,
 ) -> i32 {
     clear_last_error();
-    read_and_free_response(handle, buf_ptr, buf_len)
+    unsafe {
+        let handle = match deref_handle(handle_ptr) {
+            Ok(h) => h,
+            Err(e) => return e,
+        };
+        let result = read_and_free_response(handle, buf_ptr, buf_len);
+        drop(Box::from_raw(handle_ptr));
+        result
+    }
 }
 
+/// Free a response handle without reading the body.
+/// Call this in error-handling paths to avoid leaking the store entry and box.
+///
+/// LabVIEW CLN wiring: handle -> "Pointer to Void" (adapt to type).
 #[no_mangle]
-pub extern "system" fn http_free_response(handle: u64) -> i32 {
+pub extern "system" fn http_free_response(handle_ptr: *mut u64) -> i32 {
     clear_last_error();
-    free_response(handle)
+    unsafe {
+        let handle = match deref_handle(handle_ptr) {
+            Ok(h) => h,
+            Err(e) => return e,
+        };
+        let result = free_response(handle);
+        drop(Box::from_raw(handle_ptr));
+        result
+    }
 }
 
 #[no_mangle]
