@@ -1,64 +1,98 @@
 #ifndef HTTP_RS_LABVIEW_H
 #define HTTP_RS_LABVIEW_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include <stdarg.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <stdint.h>
 
-int http_get(const char *url,
-             const char *headers_json,
-             int timeout_ms,
-             void **handle_out,
-             int *response_len_out,
-             unsigned int *status_out);
+/**
+ * Error codes returned by all public functions.
+ * Positive values are HTTP status codes (200, 404, etc.) stored separately.
+ * Negative values are library-level errors.
+ */
+#define ERR_OK 0
 
-int http_post(const char *url,
-              const char *headers_json,
-              const unsigned char *body_ptr,
-              int body_len,
-              int timeout_ms,
-              void **handle_out,
-              int *response_len_out,
-              unsigned int *status_out);
+#define ERR_NULL_PTR -1
 
-int http_put(const char *url,
-             const char *headers_json,
-             const unsigned char *body_ptr,
-             int body_len,
-             int timeout_ms,
-             void **handle_out,
-             int *response_len_out,
-             unsigned int *status_out);
+#define ERR_INVALID_UTF8 -2
 
-int http_patch(const char *url,
-               const char *headers_json,
-               const unsigned char *body_ptr,
-               int body_len,
-               int timeout_ms,
-               void **handle_out,
-               int *response_len_out,
-               unsigned int *status_out);
+#define ERR_INVALID_HEADERS -3
 
-int http_delete(const char *url,
-                const char *headers_json,
-                int timeout_ms,
-                void **handle_out,
-                int *response_len_out,
-                unsigned int *status_out);
+#define ERR_REQUEST_FAILED -4
 
-int http_read_response(void *handle,
-                       unsigned char *buf_ptr,
-                       int buf_len);
+#define ERR_INVALID_HANDLE -5
 
-int http_free_response(void *handle);
+#define ERR_BUFFER_TOO_SMALL -6
 
-int http_get_last_error(unsigned char *buf_ptr,
-                        int buf_len);
+#define ERR_CLIENT_INIT -7
+
+int32_t http_get(const char *url,
+                 const char *headers_json,
+                 int32_t timeout_ms,
+                 uint64_t **handle_out,
+                 int32_t *response_len_out,
+                 uint32_t *status_out);
+
+int32_t http_post(const char *url,
+                  const char *headers_json,
+                  const uint8_t *body_ptr,
+                  int32_t body_len,
+                  int32_t timeout_ms,
+                  uint64_t **handle_out,
+                  int32_t *response_len_out,
+                  uint32_t *status_out);
+
+int32_t http_put(const char *url,
+                 const char *headers_json,
+                 const uint8_t *body_ptr,
+                 int32_t body_len,
+                 int32_t timeout_ms,
+                 uint64_t **handle_out,
+                 int32_t *response_len_out,
+                 uint32_t *status_out);
+
+int32_t http_patch(const char *url,
+                   const char *headers_json,
+                   const uint8_t *body_ptr,
+                   int32_t body_len,
+                   int32_t timeout_ms,
+                   uint64_t **handle_out,
+                   int32_t *response_len_out,
+                   uint32_t *status_out);
+
+int32_t http_delete(const char *url,
+                    const char *headers_json,
+                    int32_t timeout_ms,
+                    uint64_t **handle_out,
+                    int32_t *response_len_out,
+                    uint32_t *status_out);
+
+/**
+ * Read the response body into the caller-supplied buffer, then free both the
+ * store entry and the heap-boxed handle pointer.
+ *
+ * LabVIEW CLN wiring: handle -> "Pointer to Void" (adapt to type).
+ *
+ * Note on ERR_BUFFER_TOO_SMALL: the store entry is put back so you can retry
+ * with a larger buffer, but the box is always freed here. Do not call
+ * http_read_response or http_free_response again after this returns
+ * ERR_BUFFER_TOO_SMALL - allocate a buffer of at least response_len_out bytes
+ * upfront to avoid this situation.
+ */
+int32_t http_read_response(uint64_t *handle_ptr, uint8_t *buf_ptr, int32_t buf_len);
+
+/**
+ * Free a response handle without reading the body.
+ * Call this in error-handling paths to avoid leaking the store entry and box.
+ *
+ * LabVIEW CLN wiring: handle -> "Pointer to Void" (adapt to type).
+ */
+int32_t http_free_response(uint64_t *handle_ptr);
+
+int32_t http_get_last_error(uint8_t *buf_ptr, int32_t buf_len);
 
 void http_shutdown(void);
 
-#ifdef __cplusplus
-}
-#endif
-
-#endif /* HTTP_RS_LABVIEW_H */
+#endif  /* HTTP_RS_LABVIEW_H */

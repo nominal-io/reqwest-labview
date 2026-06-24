@@ -12,7 +12,6 @@ static CLIENT: OnceCell<Client> = OnceCell::new();
 pub fn get_client() -> Result<&'static Client, i32> {
     CLIENT.get_or_try_init(|| {
         Client::builder()
-            .use_rustls_tls()           // No OpenSSL dependency
             .tcp_keepalive(Duration::from_secs(30))
             .build()
             .map_err(|e| {
