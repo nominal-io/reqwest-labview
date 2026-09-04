@@ -1,5 +1,5 @@
 language = "C"
-include_guard = "HTTP_RS_LABVIEW_H"
+include_guard = "REQWEST_LABVIEW_H"
 documentation = true
 documentation_style = "c99"
 tab_width = 4

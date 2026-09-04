@@ -1,5 +1,5 @@
-#ifndef HTTP_RS_LABVIEW_H
-#define HTTP_RS_LABVIEW_H
+#ifndef REQWEST_LABVIEW_H
+#define REQWEST_LABVIEW_H
 
 #include <stdarg.h>
 #include <stdbool.h>
@@ -95,4 +95,12 @@ int32_t http_get_last_error(uint8_t *buf_ptr, int32_t buf_len);
 
 void http_shutdown(void);
 
-#endif  /* HTTP_RS_LABVIEW_H */
+/**
+ * Returns the library version as a static null-terminated string (e.g. "0.1.0").
+ * The pointer is valid for the lifetime of the process; do not free it.
+ *
+ * LabVIEW CLN wiring: return type -> "C String Pointer".
+ */
+const char *http_get_version(void);
+
+#endif  /* REQWEST_LABVIEW_H */
