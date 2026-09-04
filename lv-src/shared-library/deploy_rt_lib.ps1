@@ -1,7 +1,7 @@
 param(
     [string]$Ip = "192.168.86.39",
 
-    [string]$SourceSo = "lib_http_rs_labview_64.so",
+    [string]$SourceSo = "lib_reqwest_labview_64.so",
 
     [string]$RemoteUser = "admin",
 

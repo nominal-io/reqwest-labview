@@ -72,8 +72,8 @@ jobs:
       - name: Rename library file (Unix)
         if: runner.os != 'Windows'
         run: |
-          NEW_NAME="lib_http_rs_labview_${{ matrix.bitness }}.${{ matrix.extension }}"
-          LIB_FILE=$(find rs-src/target/${{ matrix.target }}/release -maxdepth 1 -name "libhttp_rs_labview.${{ matrix.extension }}" -type f)
+          NEW_NAME="lib_reqwest_labview_${{ matrix.bitness }}.${{ matrix.extension }}"
+          LIB_FILE=$(find rs-src/target/${{ matrix.target }}/release -maxdepth 1 -name "libreqwest_labview.${{ matrix.extension }}" -type f)
           cp "$LIB_FILE" "rs-src/target/${{ matrix.target }}/release/$NEW_NAME"
           echo "LIB_PATH=rs-src/target/${{ matrix.target }}/release/$NEW_NAME" >> $GITHUB_ENV
           echo "LIB_NAME=$NEW_NAME" >> $GITHUB_ENV
@@ -82,8 +82,8 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $newName = "lib_http_rs_labview_${{ matrix.bitness }}.${{ matrix.extension }}"
-          $libFile = Get-ChildItem -Path "rs-src/target/${{ matrix.target }}/release" -Filter "http_rs_labview.${{ matrix.extension }}" -File | Select-Object -First 1
+          $newName = "lib_reqwest_labview_${{ matrix.bitness }}.${{ matrix.extension }}"
+          $libFile = Get-ChildItem -Path "rs-src/target/${{ matrix.target }}/release" -Filter "reqwest_labview.${{ matrix.extension }}" -File | Select-Object -First 1
           Copy-Item -Path $libFile.FullName -Destination "rs-src/target/${{ matrix.target }}/release/$newName"
           echo "LIB_PATH=rs-src/target/${{ matrix.target }}/release/$newName" | Out-File -FilePath $env:GITHUB_ENV -Append
           echo "LIB_NAME=$newName" | Out-File -FilePath $env:GITHUB_ENV -Append

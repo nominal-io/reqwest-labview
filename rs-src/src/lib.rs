@@ -283,3 +283,12 @@ pub extern "C" fn http_get_last_error(buf_ptr: *mut u8, buf_len: i32) -> i32 {
 pub extern "C" fn http_shutdown() {
     clear_all_responses();
 }
+
+/// Returns the library version as a static null-terminated string (e.g. "0.1.0").
+/// The pointer is valid for the lifetime of the process; do not free it.
+///
+/// LabVIEW CLN wiring: return type -> "C String Pointer".
+#[no_mangle]
+pub extern "C" fn http_get_version() -> *const c_char {
+    concat!(env!("CARGO_PKG_VERSION"), "\0").as_ptr() as *const c_char
+}
