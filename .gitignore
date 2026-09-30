@@ -23,3 +23,5 @@ rs_src/target
 lv-src/reqwest.lvlps
 lv-src/reqwest.aliases
 
+
+*.lvprojstate
