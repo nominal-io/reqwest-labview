@@ -28,6 +28,13 @@
 
 #define ERR_CLIENT_INIT -7
 
+#define ERR_INVALID_PROXY -8
+
+/**
+ * # Safety
+ * `url` and `headers_json` must each be null or a valid null-terminated
+ * string, and each output pointer must be null or valid for writes.
+ */
 int32_t http_get(const char *url,
                  const char *headers_json,
                  int32_t timeout_ms,
@@ -35,6 +42,12 @@ int32_t http_get(const char *url,
                  int32_t *response_len_out,
                  uint32_t *status_out);
 
+/**
+ * # Safety
+ * `url` and `headers_json` must each be null or a valid null-terminated
+ * string, `body_ptr` must be null or valid for `body_len` bytes, and each
+ * output pointer must be null or valid for writes.
+ */
 int32_t http_post(const char *url,
                   const char *headers_json,
                   const uint8_t *body_ptr,
@@ -44,6 +57,12 @@ int32_t http_post(const char *url,
                   int32_t *response_len_out,
                   uint32_t *status_out);
 
+/**
+ * # Safety
+ * `url` and `headers_json` must each be null or a valid null-terminated
+ * string, `body_ptr` must be null or valid for `body_len` bytes, and each
+ * output pointer must be null or valid for writes.
+ */
 int32_t http_put(const char *url,
                  const char *headers_json,
                  const uint8_t *body_ptr,
@@ -53,6 +72,12 @@ int32_t http_put(const char *url,
                  int32_t *response_len_out,
                  uint32_t *status_out);
 
+/**
+ * # Safety
+ * `url` and `headers_json` must each be null or a valid null-terminated
+ * string, `body_ptr` must be null or valid for `body_len` bytes, and each
+ * output pointer must be null or valid for writes.
+ */
 int32_t http_patch(const char *url,
                    const char *headers_json,
                    const uint8_t *body_ptr,
@@ -62,6 +87,11 @@ int32_t http_patch(const char *url,
                    int32_t *response_len_out,
                    uint32_t *status_out);
 
+/**
+ * # Safety
+ * `url` and `headers_json` must each be null or a valid null-terminated
+ * string, and each output pointer must be null or valid for writes.
+ */
 int32_t http_delete(const char *url,
                     const char *headers_json,
                     int32_t timeout_ms,
@@ -80,6 +110,10 @@ int32_t http_delete(const char *url,
  * http_read_response or http_free_response again after this returns
  * ERR_BUFFER_TOO_SMALL - allocate a buffer of at least response_len_out bytes
  * upfront to avoid this situation.
+ *
+ * # Safety
+ * `handle_ptr` must be null or a handle from a request function that has not
+ * been read or freed, and `buf_ptr` must be null or valid for `buf_len` bytes.
  */
 int32_t http_read_response(uint64_t *handle_ptr, uint8_t *buf_ptr, int32_t buf_len);
 
@@ -88,12 +122,32 @@ int32_t http_read_response(uint64_t *handle_ptr, uint8_t *buf_ptr, int32_t buf_l
  * Call this in error-handling paths to avoid leaking the store entry and box.
  *
  * LabVIEW CLN wiring: handle -> "Pointer to Void" (adapt to type).
+ *
+ * # Safety
+ * `handle_ptr` must be null or a handle from a request function that has not
+ * been read or freed.
  */
 int32_t http_free_response(uint64_t *handle_ptr);
 
 int32_t http_get_last_error(uint8_t *buf_ptr, int32_t buf_len);
 
 void http_shutdown(void);
+
+/**
+ * Set the proxy for later requests.
+ *
+ * `proxy` is `http://host:port`, optionally with `user:password@` for Basic
+ * authentication, or `direct` for no proxy. Null or empty detects it again from
+ * HTTPS_PROXY / HTTP_PROXY / ALL_PROXY (honoring NO_PROXY), then the Windows
+ * proxy setting (honoring its bypass list). Without this call, requests connect
+ * directly. PAC scripts and NTLM authentication are not supported.
+ *
+ * LabVIEW CLN wiring: proxy -> "C String Pointer".
+ *
+ * # Safety
+ * `proxy` must be null or a valid null-terminated string.
+ */
+int32_t http_set_proxy(const char *proxy);
 
 /**
  * Returns the library version as a static null-terminated string (e.g. "0.1.0").

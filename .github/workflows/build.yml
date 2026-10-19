@@ -99,7 +99,15 @@ jobs:
   collect:
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
+      # The branch tip, so the commit below can be pushed even if the branch moved during the run
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
@@ -116,3 +124,18 @@ jobs:
         with:
           name: all-libraries
           path: all-libs/
+
+      # LabVIEW loads the libraries checked in under lv-src/shared-library, so
+      # commit them back to the branch this run was started on
+      - name: Commit libraries to the branch
+        run: |
+          cp all-libs/* lv-src/shared-library/
+          git add lv-src/shared-library
+          if git diff --cached --quiet; then
+            echo "Libraries unchanged"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898182+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Update shared libraries built from ${GITHUB_SHA::7}"
+          git push

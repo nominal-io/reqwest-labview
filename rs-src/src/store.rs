@@ -7,7 +7,6 @@ use crate::error::{set_last_error, ERR_INVALID_HANDLE, ERR_NULL_PTR, ERR_BUFFER_
 /// A stored HTTP response waiting to be read by the caller.
 pub struct StoredResponse {
     pub body: Vec<u8>,
-    pub status: u32,
 }
 
 static RESPONSES: OnceLock<Mutex<HashMap<u64, StoredResponse>>> = OnceLock::new();
@@ -20,12 +19,12 @@ fn response_store() -> &'static Mutex<HashMap<u64, StoredResponse>> {
 }
 
 /// Insert a response into the store and return its handle.
-pub fn insert_response(body: Vec<u8>, status: u32) -> u64 {
+pub fn insert_response(body: Vec<u8>) -> u64 {
     let handle = NEXT_HANDLE.fetch_add(1, Ordering::Relaxed);
     response_store()
         .lock()
         .unwrap()
-        .insert(handle, StoredResponse { body, status });
+        .insert(handle, StoredResponse { body });
     handle
 }
 
@@ -78,10 +77,4 @@ pub fn free_response(handle: u64) -> i32 {
 /// Clear all stored responses. Called from http_shutdown.
 pub fn clear_all_responses() {
     response_store().lock().unwrap().clear();
-}
-
-/// Returns the number of responses currently in the store.
-/// Useful for detecting handle leaks during development.
-pub fn pending_response_count() -> usize {
-    response_store().lock().unwrap().len()
 }

@@ -9,6 +9,7 @@ pub const ERR_REQUEST_FAILED: i32 = -4;
 pub const ERR_INVALID_HANDLE: i32 = -5;
 pub const ERR_BUFFER_TOO_SMALL: i32 = -6;
 pub const ERR_CLIENT_INIT: i32 = -7;
+pub const ERR_INVALID_PROXY: i32 = -8;
 
 use std::cell::RefCell;
 
@@ -16,7 +17,7 @@ use std::cell::RefCell;
 // Using thread-local means concurrent calls from different LabVIEW threads
 // never clobber each other's error strings.
 thread_local! {
-    static LAST_ERROR: RefCell<String> = RefCell::new(String::new());
+    static LAST_ERROR: RefCell<String> = const { RefCell::new(String::new()) };
 }
 
 /// Store an error message for retrieval via http_get_last_error.
