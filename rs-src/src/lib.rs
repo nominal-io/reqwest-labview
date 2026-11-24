@@ -355,7 +355,7 @@ pub extern "C" fn http_get_version() -> *const c_char {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::error::ERR_INVALID_PROXY;
+    use crate::error::{ERR_INVALID_PROXY, ERR_REQUEST_FAILED};
     use std::ffi::CString;
     use std::sync::mpsc::{channel, Receiver};
     use std::sync::Mutex;
@@ -366,6 +366,11 @@ mod tests {
 
     /// Accepts connections, answers each with 403, and sends back each request head
     fn recording_server() -> (String, Receiver<String>) {
+        server_answering(b"HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n")
+    }
+
+    /// Accepts connections, answers each with `response`, and sends back each request head
+    fn server_answering(response: &'static [u8]) -> (String, Receiver<String>) {
         use std::io::{Read, Write};
 
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
@@ -381,8 +386,7 @@ mod tests {
                 while !head.ends_with(b"\r\n\r\n") && matches!(connection.read(&mut byte), Ok(1)) {
                     head.push(byte[0]);
                 }
-                let _ =
-                    connection.write_all(b"HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n");
+                let _ = connection.write_all(response);
                 if tx
                     .send(String::from_utf8_lossy(&head).into_owned())
                     .is_err()
@@ -420,6 +424,28 @@ mod tests {
         }
         rx.recv_timeout(Duration::from_secs(10))
             .expect("no request reached the server")
+    }
+
+    /// Sends a GET that is expected to fail and returns its result and error message
+    fn failed_request(url: &str) -> (i32, String) {
+        let url = CString::new(url).unwrap();
+        let mut handle: *mut u64 = std::ptr::null_mut();
+        let mut len = 0;
+        let mut status = 0;
+        let result = unsafe {
+            http_get(
+                url.as_ptr(),
+                std::ptr::null(),
+                5000,
+                &mut handle,
+                &mut len,
+                &mut status,
+            )
+        };
+        if result == ERR_OK {
+            unsafe { http_free_response(handle) };
+        }
+        (result, last_error())
     }
 
     fn last_error() -> String {
@@ -491,7 +517,57 @@ mod tests {
         // A direct request names only the path; a proxied one names the whole URL
         let head = first_request(&format!("http://{}/path", address), &rx);
         assert!(head.starts_with("GET /path HTTP/1.1\r\n"), "{}", head);
+        // The proxy User-Agent goes only to proxies
+        assert!(
+            !head.to_ascii_lowercase().contains("user-agent"),
+            "{}",
+            head
+        );
         set_proxy("direct");
+    }
+
+    #[test]
+    fn test_connect_sends_user_agent() {
+        let _lock = CLIENT_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let (address, rx) = recording_server();
+        assert_eq!(set_proxy(&format!("http://{}", address)), ERR_OK);
+
+        let head = first_request("https://example.invalid/path", &rx);
+        set_proxy("direct");
+        assert!(head.starts_with("CONNECT "), "{}", head);
+        assert!(
+            head.to_ascii_lowercase()
+                .contains("user-agent: nominal-labview\r\n"),
+            "{}",
+            head
+        );
+    }
+
+    #[test]
+    fn test_refused_tunnel_error_names_the_cause() {
+        let _lock = CLIENT_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let (address, _rx) = recording_server();
+        assert_eq!(set_proxy(&format!("http://{}", address)), ERR_OK);
+
+        let (result, error) = failed_request("https://example.invalid/path");
+        set_proxy("direct");
+        assert_eq!(result, ERR_REQUEST_FAILED, "{}", error);
+        assert!(error.contains("tunnel error: unsuccessful"), "{}", error);
+    }
+
+    #[test]
+    fn test_proxy_sign_in_error_names_the_cause() {
+        let _lock = CLIENT_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let (address, _rx) = server_answering(
+            b"HTTP/1.1 407 Proxy Authentication Required\r\n\
+              Proxy-Authenticate: NTLM\r\nContent-Length: 0\r\n\r\n",
+        );
+        assert_eq!(set_proxy(&format!("http://{}", address)), ERR_OK);
+
+        let (result, error) = failed_request("https://example.invalid/path");
+        set_proxy("direct");
+        assert_eq!(result, ERR_REQUEST_FAILED, "{}", error);
+        assert!(error.contains("proxy authorization required"), "{}", error);
     }
 
     #[test]

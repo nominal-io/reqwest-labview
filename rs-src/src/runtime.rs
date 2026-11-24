@@ -1,11 +1,17 @@
 use reqwest::blocking::Client;
+use reqwest::header::{HeaderMap, HeaderValue, USER_AGENT};
 use reqwest::Proxy;
 use std::sync::Mutex;
 use std::time::Duration;
 use url::Url;
 
-use crate::error::{set_last_error, ERR_CLIENT_INIT, ERR_INVALID_PROXY};
+use crate::error::{set_last_error, with_causes, ERR_CLIENT_INIT, ERR_INVALID_PROXY};
 use crate::proxy::{is_direct, ProxyServer, ProxySettings};
+
+/// The User-Agent sent to a proxy when asking it to open a tunnel (CONNECT).
+/// Some proxies refuse a CONNECT that has none. Requests to Nominal carry only
+/// the headers LabVIEW passes.
+const PROXY_USER_AGENT: &str = "nominal-labview";
 
 struct ClientState {
     client: Option<Client>,
@@ -70,16 +76,21 @@ fn build_client(proxy: Option<&str>) -> Result<Client, String> {
         // Replaces reqwest's own lookup, so both Nominal libraries choose the same proxy
         Some(proxy) => {
             let settings = ProxySettings::detect(Some(proxy))?;
-            builder.proxy(Proxy::custom(move |url| {
-                settings
-                    .for_destination(url.scheme(), url.host_str()?)
-                    .and_then(proxy_url)
-            }))
+            let mut proxy_headers = HeaderMap::new();
+            proxy_headers.insert(USER_AGENT, HeaderValue::from_static(PROXY_USER_AGENT));
+            builder.proxy(
+                Proxy::custom(move |url| {
+                    settings
+                        .for_destination(url.scheme(), url.host_str()?)
+                        .and_then(proxy_url)
+                })
+                .headers(proxy_headers),
+            )
         }
     };
     builder
         .build()
-        .map_err(|e| format!("Failed to initialise HTTP client: {}", e))
+        .map_err(|e| format!("Failed to initialise HTTP client: {}", with_causes(&e)))
 }
 
 fn proxy_url(server: &ProxyServer) -> Option<Url> {

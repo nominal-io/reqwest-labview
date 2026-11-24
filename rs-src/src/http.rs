@@ -1,7 +1,7 @@
 use std::time::Duration;
 use reqwest::header::HeaderMap;
 
-use crate::error::{set_last_error, ERR_REQUEST_FAILED};
+use crate::error::{set_last_error, with_causes, ERR_REQUEST_FAILED};
 use crate::runtime::get_client;
 
 pub struct HttpResponse {
@@ -24,14 +24,14 @@ fn execute(
     };
 
     let response = builder.send().map_err(|e| {
-        set_last_error(format!("Request failed: {}", e));
+        set_last_error(format!("Request failed: {}", with_causes(&e)));
         ERR_REQUEST_FAILED
     })?;
 
     let status = response.status().as_u16() as u32;
 
     let body = response.bytes().map_err(|e| {
-        set_last_error(format!("Failed to read response body: {}", e));
+        set_last_error(format!("Failed to read response body: {}", with_causes(&e)));
         ERR_REQUEST_FAILED
     })?;
 

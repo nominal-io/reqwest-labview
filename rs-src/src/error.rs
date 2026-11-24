@@ -27,6 +27,24 @@ pub fn set_last_error(msg: impl Into<String>) {
     });
 }
 
+/// `error` followed by each of its causes, as "error: cause: cause".
+///
+/// reqwest's own message leaves out the cause, such as a proxy refusing the
+/// tunnel or an untrusted certificate, so it's added here.
+pub fn with_causes(error: &dyn std::error::Error) -> String {
+    let mut message = error.to_string();
+    let mut source = error.source();
+    while let Some(cause) = source {
+        let text = cause.to_string();
+        if !message.contains(&text) {
+            message.push_str(": ");
+            message.push_str(&text);
+        }
+        source = cause.source();
+    }
+    message
+}
+
 /// Clear the last error.
 pub fn clear_last_error() {
     LAST_ERROR.with(|e| {
